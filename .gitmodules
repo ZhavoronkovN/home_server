@@ -1,0 +1,3 @@
+[submodule "deps/am2320.rs"]
+	path = deps/am2320.rs
+	url = https://github.com/gferon/am2320.rs.git
