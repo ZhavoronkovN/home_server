@@ -1,16 +1,14 @@
-use std::fmt::Display;
-
 use crate::types::*;
 use am2320;
 use linux_embedded_hal::{Delay, I2cdev};
 use std::sync::RwLock;
 
-pub struct ModuleStatsGetter<T, H> {
-    pub temperature_humidity_module: Box<dyn ITemperatureHumidityModule<T, H> + Sync + Send>,
+pub struct ModuleStatsGetter {
+    pub temperature_humidity_module: Box<dyn ITemperatureHumidityModule + Sync + Send>,
 }
 
-impl<T: Display, H: Display> IStatsGetter<T, H> for ModuleStatsGetter<T, H> {
-    fn get_stats(&self) -> Stats<T, H> {
+impl IStatsGetter for ModuleStatsGetter {
+    fn get_stats(&self) -> Stats {
         let (temperature, humidity) = self.temperature_humidity_module.get_temperature_humidity();
         Stats {
             temperature,
@@ -18,16 +16,13 @@ impl<T: Display, H: Display> IStatsGetter<T, H> for ModuleStatsGetter<T, H> {
         }
     }
 }
-
-pub type THumidity = u32;
-pub type TTemperature = f32;
-pub type TGetter = dyn IStatsGetter<TTemperature, THumidity> + Sync + Send;
+pub type TGetter = dyn IStatsGetter + Sync + Send;
 
 pub struct DebugTemperatureHumidityModule {}
 
-impl ITemperatureHumidityModule<TTemperature, THumidity> for DebugTemperatureHumidityModule {
-    fn get_temperature_humidity(&self) -> (TTemperature, THumidity) {
-        (TTemperature::default(), THumidity::default())
+impl ITemperatureHumidityModule for DebugTemperatureHumidityModule {
+    fn get_temperature_humidity(&self) -> (f32, f32) {
+        (0.0,0.0)
     }
 }
 
@@ -43,8 +38,8 @@ impl AM2320Module {
     }
 }
 
-impl ITemperatureHumidityModule<TTemperature, THumidity> for AM2320Module {
-    fn get_temperature_humidity(&self) -> (TTemperature, THumidity) {
+impl ITemperatureHumidityModule for AM2320Module {
+    fn get_temperature_humidity(&self) -> (f32, f32) {
         let data = self
             .module
             .write()
@@ -54,6 +49,6 @@ impl ITemperatureHumidityModule<TTemperature, THumidity> for AM2320Module {
                 temperature: -173.0,
                 humidity: 0.0,
             });
-        (data.temperature, data.humidity as u32)
+        (data.temperature, data.humidity)
     }
 }

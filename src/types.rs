@@ -1,11 +1,12 @@
-use std::fmt::Display;
+pub type MyResult<T> = Result<T, String>;
 
-pub struct Stats<T: Display, H: Display> {
-    pub temperature: T,
-    pub humidity: H,
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Stats {
+    pub temperature: f32,
+    pub humidity: f32,
 }
 
-impl<T: Display, H: Display> Stats<T, H> {
+impl Stats {
     pub fn to_json(&self) -> String {
         let data = format!(
             "temperature:\"{}\",humidity:\"{}\"",
@@ -15,10 +16,10 @@ impl<T: Display, H: Display> Stats<T, H> {
     }
 }
 
-pub trait IStatsGetter<T: Display, H: Display> {
-    fn get_stats(&self) -> Stats<T, H>;
+pub trait IStatsGetter {
+    fn get_stats(&self) -> Stats;
 }
 
-pub trait ITemperatureHumidityModule<T : Display, H : Display> {
-    fn get_temperature_humidity(&self) -> (T, H);
+pub trait ITemperatureHumidityModule {
+    fn get_temperature_humidity(&self) -> (f32, f32);
 }
