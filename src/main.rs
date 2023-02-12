@@ -7,19 +7,19 @@ use std::sync::Arc;
 
 const I2C_ADDRESS: &str = "/dev/i2c-0";
 
-fn build_debug_getter() -> Arc<TGetter> {
+fn _build_debug_getter() -> Arc<TGetter> {
     Arc::new(modules::ModuleStatsGetter {
         temperature_humidity_module: Box::new(modules::DebugTemperatureHumidityModule {}),
     })
 }
 
-fn build_getter() -> Arc<TGetter> {
+fn _build_getter() -> Arc<TGetter> {
     Arc::new(modules::ModuleStatsGetter {
         temperature_humidity_module: Box::new(modules::AM2320Module::new(I2C_ADDRESS)),
     })
 }
 
-fn build_cont_getter() -> Arc<TGetter> {
+fn _build_cont_getter() -> Arc<TGetter> {
     let c = continous::ContinousStatsGetter::new(
         modules::ModuleStatsGetter {
             temperature_humidity_module: Box::new(modules::AM2320Module::new(I2C_ADDRESS)),
@@ -36,6 +36,6 @@ fn stats(getter: &State<Arc<TGetter>>) -> String {
 
 #[launch]
 fn rocket() -> _ {
-    let getter = build_cont_getter();
+    let getter = _build_cont_getter();
     rocket::build().manage(getter).mount("/", routes![stats])
 }

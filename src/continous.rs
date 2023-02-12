@@ -39,7 +39,7 @@ pub struct ContinousStatsGetter<H: IStatsHistory + Send + Sync + 'static> {
 impl<H: IStatsHistory + Send + Sync + 'static> ContinousStatsGetter<H> {
     pub fn new<G : IStatsGetter + Send + 'static>(inner_getter: G, history_saver: H) -> Self {
         let history_saver = Arc::new(RwLock::new(history_saver));
-        let is_running = Arc::new(RwLock::new(false));
+        let is_running = Arc::new(RwLock::new(true));
         let h = history_saver.clone();
         let r = is_running.clone();
         std::thread::spawn(move || {
@@ -67,13 +67,6 @@ impl<H: IStatsHistory + Send + Sync + 'static> ContinousStatsGetter<H> {
             thread::sleep(Duration::from_millis(1000));
         }
         println!("Thread stopped");
-    }
-    
-    pub fn running(&self) -> bool {
-        match self.is_running.read() {
-            Ok(r) => *r,
-            Err(_) => false,
-        }
     }
 }
 
