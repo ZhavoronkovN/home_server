@@ -1,89 +1,108 @@
+use crate::types::{IStatsGetter, MyResult, StatItem, Stats};
+use log;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
-use crate::types::{IStatsGetter, MyResult, Stats};
+const SECOND_TIME: u64 = 1000;
+const MINUTE_TIME: u64 = SECOND_TIME * 60;
+const HOUR_TIME: u64 = MINUTE_TIME * 60;
+const DAY_TIME: u64 = HOUR_TIME * 24;
+const WEEK_TIME: u64 = DAY_TIME * 7;
+const MONTH_TIME: u64 = WEEK_TIME * 4;
 
-pub trait IStatsHistory {
-    fn add_to_history(&mut self, stats: Stats) -> MyResult<()>;
-    fn get_last(&self) -> MyResult<Stats>;
-}
+const UPDATE_RATE: u64 = SECOND_TIME;
 
-pub struct DummyStatsHistory {
-    last_stats: Stats,
-}
-
-impl DummyStatsHistory {
-    pub fn new() -> Self {
-        DummyStatsHistory {
-            last_stats: Stats::default(),
-        }
-    }
-}
-
-impl IStatsHistory for DummyStatsHistory {
-    fn add_to_history(&mut self, stats: Stats) -> MyResult<()> {
-        self.last_stats = stats;
-        Ok(())
-    }
-    fn get_last(&self) -> MyResult<Stats> {
-        Ok(self.last_stats.clone())
-    }
-}
-
-pub struct ContinousStatsGetter<H: IStatsHistory + Send + Sync + 'static> {
-    history_saver: Arc<RwLock<H>>,
+pub struct ContinousStatsGetter {
+    last_stats: Arc<RwLock<Stats>>,
     is_running: Arc<RwLock<bool>>,
 }
 
-impl<H: IStatsHistory + Send + Sync + 'static> ContinousStatsGetter<H> {
-    pub fn new<G : IStatsGetter + Send + 'static>(inner_getter: G, history_saver: H) -> Self {
-        let history_saver = Arc::new(RwLock::new(history_saver));
-        let is_running = Arc::new(RwLock::new(true));
-        let h = history_saver.clone();
-        let r = is_running.clone();
-        std::thread::spawn(move || {
-            Self::inner_get(h, inner_getter, r)
-        });
-        ContinousStatsGetter {
-            history_saver,
+impl ContinousStatsGetter {
+    pub fn new<G: IStatsGetter + Send + 'static>(inner_getter: G) -> MyResult<Self> {
+        let last_stats = Arc::new(RwLock::new(Stats::default()));
+        let is_running = Arc::new(RwLock::new(false));
+        let mut g = ContinousStatsGetter {
+            last_stats,
             is_running,
+        };
+        g.start_update(inner_getter)?;
+        Ok(g)
+    }
+
+    fn start_update<G: IStatsGetter + Send + 'static>(&mut self, inner_getter: G) -> MyResult<()> {
+        if *self
+            .is_running
+            .read()
+            .map_err(|_| "Failed to read is_running to check if thread is running".to_string())?
+            == true
+        {
+            Err("Update thread is already running".to_string())
+        } else {
+            *self
+                .is_running
+                .write()
+                .map_err(|_| "Failed to write is_running to run thread".to_string())? = true;
+            let l = self.last_stats.clone();
+            let r = self.is_running.clone();
+            std::thread::spawn(move || Self::inner_get(l, inner_getter, r));
+            Ok(())
         }
     }
 
     fn inner_get(
-        history: Arc<RwLock<H>>,
-        getter: impl IStatsGetter,
+        last: Arc<RwLock<Stats>>,
+        mut getter: impl IStatsGetter,
         running: Arc<RwLock<bool>>,
     ) {
-        while *running.read().unwrap() {
-            let stats = getter.get_stats();
-            match history.write() {
-                Ok(mut h) => {
-                    h.add_to_history(stats).unwrap();
-                }
-                Err(_) => println!("Failed to add stats to history"),
+        log::info!("Starting stat getter thread...");
+        while let Ok(r) = running.read() && *r {
+            match getter.update_stats() {
+                Ok(()) => {
+                    match getter.get_stats() {
+                        Ok(s) => {
+                            match last.write() {
+                                Ok(mut l) => {l.update(s); log::debug!("Stats were updated");}
+                                Err(_) => log::error!("Last stats are poisoned, won't do update"),
+                            }
+                        },
+                        Err(e) => log::error!("Failed to get stats, error : {}", e)
+                    }
+                },
+                Err(e) => log::error!("Failed to update stats, error : {}", e)
             }
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(Duration::from_millis(UPDATE_RATE));
         }
-        println!("Thread stopped");
+        log::info!("Thread stopped");
     }
 }
 
-impl<H: IStatsHistory + Send + Sync + 'static> IStatsGetter for ContinousStatsGetter<H> {
-    fn get_stats(&self) -> Stats {
-        match self.history_saver.read() {
-            Ok(h) => match h.get_last() {
-                Ok(s) => s,
-                Err(_) => Stats::default(),
-            },
-            Err(_) => Stats::default(),
+impl IStatsGetter for ContinousStatsGetter {
+    fn get_stats(&self) -> MyResult<Stats> {
+        Ok(self
+            .last_stats
+            .read()
+            .map_err(|_| "Last stats are poisoned, failed to read".to_string())?
+            .clone())
+    }
+
+    fn update_stats(&mut self) -> MyResult<()> {
+        if *self.is_running.read().map_err(|_| {
+            "Is_running is poisoned, failed to check if thread is running".to_string()
+        })? {
+            Ok(())
+        } else {
+            Err("Update thread is not running".to_string())
         }
     }
 }
 
-impl<H: IStatsHistory + Send + Sync + 'static> Drop for ContinousStatsGetter<H> {
+impl Drop for ContinousStatsGetter {
     fn drop(&mut self) {
-        *self.is_running.write().unwrap() = false;
+        if let Ok(mut r) = self.is_running.write() {
+            *r = false
+        } else {
+            log::error!("Failed to write running false");
+        }
     }
 }
