@@ -56,6 +56,7 @@ impl ContinousStatsGetter {
         running: Arc<RwLock<bool>>,
     ) {
         log::info!("Starting stat getter thread...");
+        let sleep_time = std::env::var("UPDATE_RATE").unwrap_or(UPDATE_RATE.to_string()).parse().unwrap_or(UPDATE_RATE);
         while let Ok(r) = running.read() && *r {
             match getter.update_stats() {
                 Ok(()) => {
@@ -71,7 +72,7 @@ impl ContinousStatsGetter {
                 },
                 Err(e) => log::error!("Failed to update stats, error : {}", e)
             }
-            thread::sleep(Duration::from_millis(UPDATE_RATE));
+            thread::sleep(Duration::from_millis(sleep_time));
         }
         log::info!("Thread stopped");
     }
