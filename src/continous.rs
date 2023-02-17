@@ -1,4 +1,4 @@
-use crate::types::{IStatsGetter, MyResult, StatItem, Stats};
+use crate::types::{IStatsGetter, MyResult, Stats};
 use log;
 use std::sync::{Arc, RwLock};
 use std::thread;

@@ -4,9 +4,9 @@ use gpio::{sysfs::SysFsGpioInput, GpioIn};
 use linux_embedded_hal::{Delay, I2cdev};
 
 pub trait IModule {
-    type MeasureType;
-    fn get_measurement(&mut self) -> MyResult<Self::MeasureType>;
+    fn get_measurement(&mut self) -> MyResult<StatType>;
     fn get_key(&self) -> String;
+    fn get_stat_item(&self) -> Box<dyn StatItem>;
 }
 
 pub struct ModuleStatsGetter {
@@ -17,27 +17,23 @@ pub struct ModuleStatsGetter {
 impl ModuleStatsGetter {
     pub fn new() -> Self {
         ModuleStatsGetter {
-            modules : Vec::new(),
+            modules: Vec::new(),
             last_stats: Stats::default(),
         }
     }
 
-    pub fn add_module(&mut self) {
-        
+    pub fn add_module<M: IModule + Sync + Send + 'static>(&mut self, module: M) {
+        self.last_stats.add_stat_item(module.get_stat_item());
+        self.modules.push(Box::new(module));
     }
 }
 
 impl IStatsGetter for ModuleStatsGetter {
     fn update_stats(&mut self) -> MyResult<()> {
-        let (temperature, humidity) = self
-            .temperature_humidity_module
-            .get_temperature_humidity()?;
-        let smoke_alarm = self.smoke_alarm_module.get_triggered()?;
-        let motion_detected = self.motion_detect_module.get_triggered()?;
-        self.last_stats.temperature.update(temperature);
-        self.last_stats.humidity.update(humidity);
-        self.last_stats.smoke_alarm.update(smoke_alarm);
-        self.last_stats.motion_detect.update(motion_detected);
+        for m in &mut self.modules {
+            self.last_stats
+                .update_stat_item(&m.get_key(), m.get_measurement()?)?
+        }
         Ok(())
     }
 
@@ -47,31 +43,35 @@ impl IStatsGetter for ModuleStatsGetter {
 }
 pub type TGetter = dyn IStatsGetter + Sync + Send;
 
-pub struct DebugTemperatureHumidityModule {}
+pub struct DebugTemperatureModule {}
 
-impl IModule for DebugTemperatureHumidityModule {
-    type MeasureType = (f32, f32);
-    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
-        Ok((0.0, 0.0))
+impl IModule for DebugTemperatureModule {
+    fn get_measurement(&mut self) -> MyResult<StatType> {
+        Ok(StatType::Numeric(0.0))
+    }
+
+    fn get_key(&self) -> String {
+        "debug_temperature".to_string()
+    }
+
+    fn get_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(NumericStat::default())
     }
 }
 
-pub struct DebugPinModule {}
-
-impl IModule for DebugPinModule {
-    type MeasureType = bool;
-    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
-        Ok(false)
-    }
+pub enum AM2320Usage {
+    Temperature,
+    Humidity,
 }
-
 pub struct AM2320Module {
     module: am2320::Am2320<I2cdev, Delay>,
+    used_for: AM2320Usage,
 }
 
 impl AM2320Module {
-    pub fn new(i2c_address: &str) -> MyResult<Self> {
+    pub fn new(i2c_address: &str, used_for: AM2320Usage) -> MyResult<Self> {
         Ok(AM2320Module {
+            used_for,
             module: am2320::Am2320::new(
                 I2cdev::new(i2c_address)
                     .map_err(|_| format!("Failed to connect to i2c address {}", i2c_address))?,
@@ -82,24 +82,40 @@ impl AM2320Module {
 }
 
 impl IModule for AM2320Module {
-    type MeasureType = (f32, f32);
-    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
+    fn get_measurement(&mut self) -> MyResult<StatType> {
         let data = self
             .module
             .read()
             .map_err(|_| "Failed to read AM2320 data".to_string())?;
-        Ok((data.temperature, data.humidity))
+        Ok(StatType::Numeric(match self.used_for {
+            AM2320Usage::Temperature => data.temperature,
+            AM2320Usage::Humidity => data.humidity,
+        }))
+    }
+
+    fn get_key(&self) -> String {
+        match self.used_for {
+            AM2320Usage::Temperature => "temperature",
+            AM2320Usage::Humidity => "humidity",
+        }
+        .to_string()
+    }
+
+    fn get_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(NumericStat::default())
     }
 }
 
 pub struct SysfsPinReader {
     pin_number: u16,
     pin: SysFsGpioInput,
+    name: String,
 }
 
 impl SysfsPinReader {
-    pub fn new(pin: u16) -> MyResult<Self> {
+    pub fn new(pin: u16, name: String) -> MyResult<Self> {
         Ok(SysfsPinReader {
+            name,
             pin_number: pin,
             pin: gpio::sysfs::SysFsGpioInput::open(pin)
                 .map_err(|_| format!("Failed to connect to pin {}", pin))?,
@@ -108,12 +124,20 @@ impl SysfsPinReader {
 }
 
 impl IModule for SysfsPinReader {
-    type MeasureType = bool;
-    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
-        Ok(self
-            .pin
-            .read_value()
-            .map_err(|_| format!("Failed to read pin {}", self.pin_number))?
-            == gpio::GpioValue::High)
+    fn get_measurement(&mut self) -> MyResult<StatType> {
+        Ok(StatType::Bool(
+            self.pin
+                .read_value()
+                .map_err(|_| format!("Failed to read pin {}", self.pin_number))?
+                == gpio::GpioValue::High,
+        ))
+    }
+
+    fn get_key(&self) -> String {
+        self.name.clone()
+    }
+
+    fn get_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(BoolStat::default())
     }
 }

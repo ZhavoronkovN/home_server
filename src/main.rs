@@ -17,11 +17,9 @@ const DEFAULT_SERVER_ADDRESS: &str = "0.0.0.0";
 const DEFAULT_SERVER_PORT: &str = "80";
 
 fn _build_debug_getter() -> MyResult<modules::ModuleStatsGetter> {
-    Ok(modules::ModuleStatsGetter::new(
-        modules::DebugTemperatureHumidityModule {},
-        modules::DebugPinModule {},
-        modules::DebugPinModule {},
-    ))
+    let mut getter = modules::ModuleStatsGetter::new();
+    getter.add_module(modules::DebugTemperatureModule{});
+    Ok(getter)
 }
 
 fn _build_getter() -> MyResult<modules::ModuleStatsGetter> {
@@ -34,11 +32,12 @@ fn _build_getter() -> MyResult<modules::ModuleStatsGetter> {
         .unwrap_or(DEFAULT_MOTION_DETECT_PIN.to_string())
         .parse()
         .map_err(|_| "Failed to parse MOTION_DETECT_PIN".to_string())?;
-    Ok(modules::ModuleStatsGetter::new(
-        modules::AM2320Module::new(i2c_address.as_str())?,
-        modules::SysfsPinReader::new(smoke_alarm_pin)?,
-        modules::SysfsPinReader::new(motion_detect_pin)?,
-    ))
+    let mut getter = modules::ModuleStatsGetter::new();
+    getter.add_module(modules::AM2320Module::new(i2c_address.as_str(), modules::AM2320Usage::Temperature)?);
+    getter.add_module(modules::AM2320Module::new(i2c_address.as_str(), modules::AM2320Usage::Humidity)?);
+    getter.add_module(modules::SysfsPinReader::new(smoke_alarm_pin, "smoke_alarm".to_string())?);
+    getter.add_module(modules::SysfsPinReader::new(motion_detect_pin, "motion_detect".to_string())?);
+    Ok(getter)
 }
 
 fn _build_cont_getter(
