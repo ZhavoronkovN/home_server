@@ -1,7 +1,6 @@
 use chrono::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::Arc;
 pub type MyResult<T> = Result<T, String>;
 pub type NumericType = f32;
 
@@ -11,9 +10,9 @@ pub enum StatType {
 }
 
 pub trait StatItem: Debug + JsonConv + Sync + Send {
-    fn update(&mut self, val: StatType);
-    fn get_name(&self) -> String;
+    fn update(&mut self, val: &StatType);
     fn get_last(&self) -> StatType;
+    fn box_clone(&self) -> Box<dyn StatItem>;
 }
 
 pub trait JsonConv {
@@ -35,6 +34,14 @@ pub struct NumericStat {
     name: String,
 }
 
+impl NumericStat {
+    pub fn new(name: String) -> Self {
+        let mut res = Self::default();
+        res.name = name;
+        res
+    }
+}
+
 #[derive(Default, Clone, std::fmt::Debug)]
 pub struct BoolStat {
     pub triggered: bool,
@@ -43,33 +50,27 @@ pub struct BoolStat {
     name: String,
 }
 
+impl BoolStat {
+    pub fn new(name: String) -> Self {
+        let mut res = Self::default();
+        res.name = name;
+        res
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Stats {
     stat_list: HashMap<String, Box<dyn StatItem>>,
 }
 
 impl Stats {
-    pub fn update(&mut self, other: Stats) {
-        self.stat_list.iter_mut().for_each(|(k, v)| {
-            if other.stat_list.contains_key(k) {
-                v.update(
-                    other
-                        .stat_list
-                        .get(k)
-                        .expect("Failed to get stat by key")
-                        .get_last(),
-                )
-            }
-        })
-    }
-
-    pub fn add_stat_item(&mut self, new_stat: Box<dyn StatItem>) {
-        self.stat_list.insert(new_stat.get_name(), new_stat);
+    pub fn add_stat_item(&mut self, key: String, new_stat: Box<dyn StatItem>) {
+        self.stat_list.insert(key, new_stat);
     }
 
     pub fn update_stat_item(&mut self, key: &String, val: StatType) -> MyResult<()> {
         match self.stat_list.get_mut(key) {
-            Some(item) => Ok(item.update(val)),
+            Some(item) => Ok(item.update(&val)),
             None => Err(format!(
                 "Failed to update stat item, key {} was not found",
                 key
@@ -80,19 +81,23 @@ impl Stats {
 
 impl Clone for Stats {
     fn clone(&self) -> Self {
-        self.stat_list.iter().map(|(k,v)| (k.clone(), v.box_clone()));
-        Self { stat_list: self.stat_list.clone() }
+        Self {
+            stat_list: self
+                .stat_list
+                .iter()
+                .map(|(k, v)| (k.clone(), v.box_clone()))
+                .collect(),
+        }
     }
 }
 
-
 impl StatItem for BoolStat {
-    fn update(&mut self, trig: StatType) {
+    fn update(&mut self, trig: &StatType) {
         match trig {
             StatType::Numeric(_) => panic!("Attempt to update bool stat with number"),
             StatType::Bool(b) => {
-                self.triggered = b;
-                if b {
+                self.triggered = *b;
+                if *b {
                     self.last_triggered = Utc::now().timestamp();
                     self.total_triggers += 1;
                 }
@@ -100,38 +105,40 @@ impl StatItem for BoolStat {
         }
     }
 
-    fn get_name(&self) -> String {
-        self.name
-    }
-
     fn get_last(&self) -> StatType {
         StatType::Bool(self.triggered)
+    }
+
+    fn box_clone(&self) -> Box<dyn StatItem> {
+        Box::new(self.clone())
     }
 }
 
 impl StatItem for NumericStat {
-    fn update(&mut self, val: StatType) {
+    fn update(&mut self, val: &StatType) {
         match val {
             StatType::Bool(_) => panic!("Attempt to update numeric stat with bool"),
             StatType::Numeric(n) => {
                 if self.observations == u64::MAX {
+                    let name = self.name.clone();
                     *self = Self::default();
+                    self.name = name;
                 }
-                self.last = n;
+                self.last = *n;
                 self.avg = self.avg * self.observations as f32 + n / (self.observations + 1) as f32;
-                self.min = self.min.min(n);
-                self.max = self.max.max(n);
+                self.min = self.min.min(*n);
+                self.max = self.max.max(*n);
                 self.observations += 1;
             }
         }
     }
 
-    fn get_name(&self) -> String {
-        self.name
-    }
-
     fn get_last(&self) -> StatType {
         StatType::Numeric(self.last)
+    }
+
+    fn box_clone(&self) -> Box<dyn StatItem> {
+        Box::new(self.clone())
     }
 }
 

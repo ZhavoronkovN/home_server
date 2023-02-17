@@ -5,7 +5,6 @@ use std::env;
 mod continous;
 mod modules;
 mod types;
-use modules::TGetter;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
 use types::{IStatsGetter, JsonConv, MyResult};
@@ -18,7 +17,7 @@ const DEFAULT_SERVER_PORT: &str = "80";
 
 fn _build_debug_getter() -> MyResult<modules::ModuleStatsGetter> {
     let mut getter = modules::ModuleStatsGetter::new();
-    getter.add_module(modules::DebugTemperatureModule{});
+    getter.add_module(modules::DebugTemperatureModule {});
     Ok(getter)
 }
 
@@ -33,21 +32,33 @@ fn _build_getter() -> MyResult<modules::ModuleStatsGetter> {
         .parse()
         .map_err(|_| "Failed to parse MOTION_DETECT_PIN".to_string())?;
     let mut getter = modules::ModuleStatsGetter::new();
-    getter.add_module(modules::AM2320Module::new(i2c_address.as_str(), modules::AM2320Usage::Temperature)?);
-    getter.add_module(modules::AM2320Module::new(i2c_address.as_str(), modules::AM2320Usage::Humidity)?);
-    getter.add_module(modules::SysfsPinReader::new(smoke_alarm_pin, "smoke_alarm".to_string())?);
-    getter.add_module(modules::SysfsPinReader::new(motion_detect_pin, "motion_detect".to_string())?);
+    getter.add_module(modules::AM2320Module::new(
+        i2c_address.as_str(),
+        modules::AM2320Usage::Temperature,
+    )?);
+    getter.add_module(modules::AM2320Module::new(
+        i2c_address.as_str(),
+        modules::AM2320Usage::Humidity,
+    )?);
+    getter.add_module(modules::SysfsPinReader::new(
+        smoke_alarm_pin,
+        "smoke_alarm".to_string(),
+    )?);
+    getter.add_module(modules::SysfsPinReader::new(
+        motion_detect_pin,
+        "motion_detect".to_string(),
+    )?);
     Ok(getter)
 }
 
-fn _build_cont_getter(
-    getter: impl IStatsGetter + std::marker::Send + 'static,
-) -> MyResult<continous::ContinousStatsGetter> {
+fn _build_cont_getter<G: IStatsGetter + std::marker::Sync + std::marker::Send + 'static>(
+    getter: G,
+) -> MyResult<continous::ContinousStatsGetter<G>> {
     continous::ContinousStatsGetter::new(getter)
 }
 
 #[get("/stats")]
-fn stats(getter: &State<Arc<TGetter>>) -> String {
+fn stats(getter: &State<Arc<dyn IStatsGetter + Sync + Send>>) -> String {
     match getter.get_stats() {
         Ok(s) => s.to_json(),
         Err(e) => {
@@ -65,7 +76,7 @@ fn rocket() -> _ {
     } else {
         _build_getter().unwrap()
     };
-    let getter: Arc<TGetter> = Arc::new(_build_cont_getter(g).unwrap());
+    let getter = Arc::new(_build_cont_getter(g).unwrap());
     let mut config = Config::default();
     config.address = std::net::IpAddr::V4(
         env::var("SERVER_ADDRESS")

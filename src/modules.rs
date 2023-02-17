@@ -23,7 +23,8 @@ impl ModuleStatsGetter {
     }
 
     pub fn add_module<M: IModule + Sync + Send + 'static>(&mut self, module: M) {
-        self.last_stats.add_stat_item(module.get_stat_item());
+        self.last_stats
+            .add_stat_item(module.get_key(), module.get_stat_item());
         self.modules.push(Box::new(module));
     }
 }
@@ -41,7 +42,6 @@ impl IStatsGetter for ModuleStatsGetter {
         Ok(self.last_stats.clone())
     }
 }
-pub type TGetter = dyn IStatsGetter + Sync + Send;
 
 pub struct DebugTemperatureModule {}
 
@@ -55,7 +55,7 @@ impl IModule for DebugTemperatureModule {
     }
 
     fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(NumericStat::default())
+        Box::new(NumericStat::new(self.get_key()))
     }
 }
 
@@ -102,7 +102,7 @@ impl IModule for AM2320Module {
     }
 
     fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(NumericStat::default())
+        Box::new(NumericStat::new(self.get_key()))
     }
 }
 
@@ -138,6 +138,6 @@ impl IModule for SysfsPinReader {
     }
 
     fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(BoolStat::default())
+        Box::new(BoolStat::new(self.get_key()))
     }
 }
