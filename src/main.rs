@@ -10,8 +10,8 @@ use simple_logger::SimpleLogger;
 use std::sync::Arc;
 
 const DEFAULT_I2C_ADDRESS: &str = "/dev/i2c-0";
-const DEFAULT_SMOKE_ALARM_PIN: &str = "0";
-const DEFAULT_MOTION_DETECT_PIN: &str = "1";
+const DEFAULT_SMOKE_ALARM_PIN: &str = "12";
+const DEFAULT_MOTION_DETECT_PIN: &str = "26";
 const DEFAULT_SERVER_ADDRESS: &str = "0.0.0.0";
 const DEFAULT_SERVER_PORT: &str = "80";
 
