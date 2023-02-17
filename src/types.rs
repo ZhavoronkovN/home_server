@@ -1,33 +1,55 @@
+use std::fmt::Debug;
+
 use chrono::prelude::*;
 
 pub type MyResult<T> = Result<T, String>;
 type NumericType = f32;
 
-pub trait StatItem<T> {
-    fn update(&mut self, val: T);
+pub trait StatItem {
+    fn from_value<T>(val : T) -> Self;
+    fn update<T>(&mut self, val: T);
 }
 
 pub trait JsonConv {
     fn to_json(&self) -> String;
 }
 
-#[derive(Default, Clone, Copy, std::fmt::Debug)]
+pub trait IStatsGetter {
+    fn update_stats(&mut self) -> MyResult<()>;
+    fn get_stats(&self) -> MyResult<Stats>;
+}
+
+#[derive(Default, Clone, std::fmt::Debug)]
 pub struct NumericStat {
     pub last: NumericType,
     pub avg: NumericType,
     pub min: NumericType,
     pub max: NumericType,
     observations: u64,
+    name: String,
 }
 
-#[derive(Default, Clone, Copy, std::fmt::Debug)]
+#[derive(Default, Clone, std::fmt::Debug)]
 pub struct BoolStat {
     pub triggered: bool,
     pub last_triggered: i64,
     pub total_triggers: u64,
+    name: String,
 }
 
-impl StatItem<bool> for BoolStat {
+#[derive(Default, Debug, Clone)]
+pub struct Stats {
+    stat_list : Vec<dyn StatItem + Debug + Default + Clone>
+}
+
+impl StatItem for BoolStat {
+    fn from_value(val : bool) -> Self {
+        let mut res = Self::default();
+        res.name = "unknown_bool_stat".to_string();
+        res.update(val);
+        res
+    }
+
     fn update(&mut self, trig: bool) {
         self.triggered = trig;
         if trig {
@@ -38,6 +60,13 @@ impl StatItem<bool> for BoolStat {
 }
 
 impl StatItem<NumericType> for NumericStat {
+    fn from_value(val : NumericType) -> Self {
+        let mut res = Self::default();
+        res.name = "unknown_numeric_stat".to_string();
+        res.update(val);
+        res
+    }
+
     fn update(&mut self, val: NumericType) {
         if self.observations == u64::MAX {
             *self = Self::default();
@@ -50,44 +79,6 @@ impl StatItem<NumericType> for NumericStat {
     }
 }
 
-impl JsonConv for BoolStat {
-    fn to_json(&self) -> String {
-        format!(
-            "{{triggered:{},last_triggered:{},total_triggers:{}}}",
-            self.triggered, self.last_triggered, self.total_triggers
-        )
-    }
-}
-
-impl JsonConv for NumericStat {
-    fn to_json(&self) -> String {
-        format!(
-            "{{value:{},avg:{},min:{},max:{}}}",
-            self.last, self.avg, self.min, self.max
-        )
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Stats {
-    pub temperature: NumericStat,
-    pub humidity: NumericStat,
-    pub smoke_alarm: BoolStat,
-    pub motion_detect: BoolStat,
-}
-
-impl JsonConv for Stats {
-    fn to_json(&self) -> String {
-        format!(
-            "{{stats:{{temperature:\"{}\",humidity:\"{}\",smoke:\"{}\",motion:\"{}\"}}",
-            self.temperature.to_json(),
-            self.humidity.to_json(),
-            self.smoke_alarm.to_json(),
-            self.motion_detect.to_json()
-        )
-    }
-}
-
 impl StatItem<Stats> for Stats {
     fn update(&mut self, val: Stats) {
         self.temperature.update(val.temperature.last);
@@ -97,15 +88,32 @@ impl StatItem<Stats> for Stats {
     }
 }
 
-pub trait IStatsGetter {
-    fn update_stats(&mut self) -> MyResult<()>;
-    fn get_stats(&self) -> MyResult<Stats>;
+impl JsonConv for BoolStat {
+    fn to_json(&self) -> String {
+        format!(
+            "{}:{{triggered:{},last_triggered:{},total_triggers:{}}}",
+            self.name, self.triggered, self.last_triggered, self.total_triggers
+        )
+    }
 }
 
-pub trait ITemperatureHumidityModule {
-    fn get_temperature_humidity(&mut self) -> MyResult<(f32, f32)>;
+impl JsonConv for NumericStat {
+    fn to_json(&self) -> String {
+        format!(
+            "{}:{{value:{},avg:{},min:{},max:{}}}",
+            self.name, self.last, self.avg, self.min, self.max
+        )
+    }
 }
 
-pub trait IPinReader {
-    fn get_triggered(&mut self) -> MyResult<bool>;
+impl JsonConv for Stats {
+    fn to_json(&self) -> String {
+        format!(
+            "{{stats:{{{},{},{},{}}}",
+            self.temperature.to_json(),
+            self.humidity.to_json(),
+            self.smoke_alarm.to_json(),
+            self.motion_detect.to_json()
+        )
+    }
 }

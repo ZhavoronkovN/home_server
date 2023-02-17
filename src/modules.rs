@@ -3,29 +3,27 @@ use am2320;
 use gpio::{sysfs::SysFsGpioInput, GpioIn};
 use linux_embedded_hal::{Delay, I2cdev};
 
+pub trait IModule {
+    type MeasureType;
+    fn get_measurement(&mut self) -> MyResult<Self::MeasureType>;
+    fn get_key(&self) -> String;
+}
+
 pub struct ModuleStatsGetter {
-    pub temperature_humidity_module: Box<dyn ITemperatureHumidityModule + Sync + Send>,
-    pub smoke_alarm_module: Box<dyn IPinReader + Sync + Send>,
-    pub motion_detect_module: Box<dyn IPinReader + Sync + Send>,
+    modules: Vec<Box<dyn IModule + Sync + Send>>,
     last_stats: Stats,
 }
 
 impl ModuleStatsGetter {
-    pub fn new<
-        T: ITemperatureHumidityModule + Sync + Send + 'static,
-        S: IPinReader + Sync + Send + 'static,
-        M: IPinReader + Sync + Send + 'static,
-    >(
-        temp_mod: T,
-        smoke_mod: S,
-        motion_mod: M,
-    ) -> Self {
+    pub fn new() -> Self {
         ModuleStatsGetter {
-            temperature_humidity_module: Box::new(temp_mod),
-            smoke_alarm_module: Box::new(smoke_mod),
-            motion_detect_module: Box::new(motion_mod),
+            modules : Vec::new(),
             last_stats: Stats::default(),
         }
+    }
+
+    pub fn add_module(&mut self) {
+        
     }
 }
 
@@ -51,16 +49,18 @@ pub type TGetter = dyn IStatsGetter + Sync + Send;
 
 pub struct DebugTemperatureHumidityModule {}
 
-impl ITemperatureHumidityModule for DebugTemperatureHumidityModule {
-    fn get_temperature_humidity(&mut self) -> MyResult<(f32, f32)> {
+impl IModule for DebugTemperatureHumidityModule {
+    type MeasureType = (f32, f32);
+    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
         Ok((0.0, 0.0))
     }
 }
 
 pub struct DebugPinModule {}
 
-impl IPinReader for DebugPinModule {
-    fn get_triggered(&mut self) -> MyResult<bool> {
+impl IModule for DebugPinModule {
+    type MeasureType = bool;
+    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
         Ok(false)
     }
 }
@@ -81,8 +81,9 @@ impl AM2320Module {
     }
 }
 
-impl ITemperatureHumidityModule for AM2320Module {
-    fn get_temperature_humidity(&mut self) -> MyResult<(f32, f32)> {
+impl IModule for AM2320Module {
+    type MeasureType = (f32, f32);
+    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
         let data = self
             .module
             .read()
@@ -95,6 +96,7 @@ pub struct SysfsPinReader {
     pin_number: u16,
     pin: SysFsGpioInput,
 }
+
 impl SysfsPinReader {
     pub fn new(pin: u16) -> MyResult<Self> {
         Ok(SysfsPinReader {
@@ -105,8 +107,9 @@ impl SysfsPinReader {
     }
 }
 
-impl IPinReader for SysfsPinReader {
-    fn get_triggered(&mut self) -> MyResult<bool> {
+impl IModule for SysfsPinReader {
+    type MeasureType = bool;
+    fn get_measurement(&mut self) -> MyResult<Self::MeasureType> {
         Ok(self
             .pin
             .read_value()
