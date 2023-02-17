@@ -1,7 +1,6 @@
-use chrono::prelude::*;
-use std::collections::HashMap;
+use crate::common::*;
+use chrono::Utc;
 use std::fmt::Debug;
-pub type MyResult<T> = Result<T, String>;
 pub type NumericType = f32;
 
 pub enum StatType {
@@ -13,15 +12,6 @@ pub trait StatItem: Debug + JsonConv + Sync + Send {
     fn update(&mut self, val: &StatType);
     fn get_last(&self) -> StatType;
     fn box_clone(&self) -> Box<dyn StatItem>;
-}
-
-pub trait JsonConv {
-    fn to_json(&self) -> String;
-}
-
-pub trait IStatsGetter {
-    fn update_stats(&mut self) -> MyResult<()>;
-    fn get_stats(&self) -> MyResult<Stats>;
 }
 
 #[derive(Default, Clone, std::fmt::Debug)]
@@ -55,39 +45,6 @@ impl BoolStat {
         let mut res = Self::default();
         res.name = name;
         res
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct Stats {
-    stat_list: HashMap<String, Box<dyn StatItem>>,
-}
-
-impl Stats {
-    pub fn add_stat_item(&mut self, key: String, new_stat: Box<dyn StatItem>) {
-        self.stat_list.insert(key, new_stat);
-    }
-
-    pub fn update_stat_item(&mut self, key: &String, val: StatType) -> MyResult<()> {
-        match self.stat_list.get_mut(key) {
-            Some(item) => Ok(item.update(&val)),
-            None => Err(format!(
-                "Failed to update stat item, key {} was not found",
-                key
-            )),
-        }
-    }
-}
-
-impl Clone for Stats {
-    fn clone(&self) -> Self {
-        Self {
-            stat_list: self
-                .stat_list
-                .iter()
-                .map(|(k, v)| (k.clone(), v.box_clone()))
-                .collect(),
-        }
     }
 }
 
@@ -156,19 +113,6 @@ impl JsonConv for NumericStat {
         format!(
             "{}:{{value:{},avg:{},min:{},max:{}}}",
             self.name, self.last, self.avg, self.min, self.max
-        )
-    }
-}
-
-impl JsonConv for Stats {
-    fn to_json(&self) -> String {
-        format!(
-            "{{stats:{{{}}}",
-            self.stat_list
-                .values()
-                .map(|i| i.to_json())
-                .collect::<Vec<String>>()
-                .join(",")
         )
     }
 }

@@ -3,11 +3,11 @@
 use rocket::{get, launch, routes, Config, State};
 use std::env;
 mod continous;
-mod modules;
 mod types;
+use types::*;
+mod modules;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
-use types::{IStatsGetter, JsonConv, MyResult};
 
 const DEFAULT_I2C_ADDRESS: &str = "/dev/i2c-0";
 const DEFAULT_SMOKE_ALARM_PIN: &str = "0";
