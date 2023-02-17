@@ -16,7 +16,7 @@ impl ModuleStatsGetter {
 
     pub fn add_module<M: IModule + Sync + Send + 'static>(&mut self, module: M) {
         self.last_stats
-            .add_stat_item(module.get_key(), module.get_stat_item());
+            .add_stat_item(module.get_measurement_name(), module.get_base_stat_item());
         self.modules.push(Box::new(module));
     }
 }
@@ -25,7 +25,7 @@ impl IStatsGetter for ModuleStatsGetter {
     fn update_stats(&mut self) -> MyResult<()> {
         for m in &mut self.modules {
             self.last_stats
-                .update_stat_item(&m.get_key(), m.get_measurement()?)?
+                .update_stat_item(&m.get_measurement_name(), m.get_measurement()?)?
         }
         Ok(())
     }

@@ -36,7 +36,7 @@ impl IModule for AM2320Module {
         }))
     }
 
-    fn get_key(&self) -> String {
+    fn get_measurement_name(&self) -> String {
         match self.used_for {
             AM2320Usage::Temperature => "temperature",
             AM2320Usage::Humidity => "humidity",
@@ -44,7 +44,7 @@ impl IModule for AM2320Module {
         .to_string()
     }
 
-    fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(NumericStat::new(self.get_key()))
+    fn get_base_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(NumericStat::new(self.get_measurement_name()))
     }
 }

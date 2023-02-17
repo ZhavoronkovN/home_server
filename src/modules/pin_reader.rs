@@ -29,11 +29,11 @@ impl IModule for SysfsPinReader {
         ))
     }
 
-    fn get_key(&self) -> String {
+    fn get_measurement_name(&self) -> String {
         self.name.clone()
     }
 
-    fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(BoolStat::new(self.get_key()))
+    fn get_base_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(BoolStat::new(self.get_measurement_name()))
     }
 }

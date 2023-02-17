@@ -7,11 +7,11 @@ impl IModule for DebugTemperatureModule {
         Ok(StatType::Numeric(0.0))
     }
 
-    fn get_key(&self) -> String {
+    fn get_measurement_name(&self) -> String {
         "debug_temperature".to_string()
     }
 
-    fn get_stat_item(&self) -> Box<dyn StatItem> {
-        Box::new(NumericStat::new(self.get_key()))
+    fn get_base_stat_item(&self) -> Box<dyn StatItem> {
+        Box::new(NumericStat::new(self.get_measurement_name()))
     }
 }
