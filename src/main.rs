@@ -17,7 +17,22 @@ const DEFAULT_SERVER_PORT: &str = "80";
 
 fn _build_debug_getter() -> MyResult<modules::ModuleStatsGetter> {
     let mut getter = modules::ModuleStatsGetter::new();
-    getter.add_module(modules::DebugTemperatureModule {});
+    getter.add_module(modules::DebugNumericModule {
+        name: "debug_temperature".to_string(),
+        return_value: 20.0,
+    });
+    getter.add_module(modules::DebugNumericModule {
+        name: "debug_humidity".to_string(),
+        return_value: 40.0,
+    });
+    getter.add_module(modules::DebugBoolModule {
+        name: "debug_smoke".to_string(),
+        return_value: false,
+    });
+    getter.add_module(modules::DebugBoolModule {
+        name: "debug_motion".to_string(),
+        return_value: true,
+    });
     Ok(getter)
 }
 
@@ -76,7 +91,7 @@ fn rocket() -> _ {
     } else {
         _build_getter().unwrap()
     };
-    let getter = Arc::new(_build_cont_getter(g).unwrap());
+    let getter: Arc<dyn IStatsGetter + Sync + Send> = Arc::new(_build_cont_getter(g).unwrap());
     let mut config = Config::default();
     config.address = std::net::IpAddr::V4(
         env::var("SERVER_ADDRESS")

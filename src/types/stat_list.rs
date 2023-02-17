@@ -38,7 +38,7 @@ impl Clone for Stats {
 impl JsonConv for Stats {
     fn to_json(&self) -> String {
         format!(
-            "{{stats:{{{}}}",
+            "{{stats:{{{}}}}}",
             self.stat_list
                 .values()
                 .map(|i| i.to_json())

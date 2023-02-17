@@ -28,6 +28,8 @@ impl NumericStat {
     pub fn new(name: String) -> Self {
         let mut res = Self::default();
         res.name = name;
+        res.min = NumericType::MAX;
+        res.max = NumericType::MIN;
         res
     }
 }
@@ -44,6 +46,7 @@ impl BoolStat {
     pub fn new(name: String) -> Self {
         let mut res = Self::default();
         res.name = name;
+        res.last_triggered = -1;
         res
     }
 }
@@ -77,12 +80,11 @@ impl StatItem for NumericStat {
             StatType::Bool(_) => panic!("Attempt to update numeric stat with bool"),
             StatType::Numeric(n) => {
                 if self.observations == u64::MAX {
-                    let name = self.name.clone();
-                    *self = Self::default();
-                    self.name = name;
+                    *self = Self::new(self.name.clone());
                 }
                 self.last = *n;
-                self.avg = self.avg * self.observations as f32 + n / (self.observations + 1) as f32;
+                self.avg =
+                    (self.avg * self.observations as f32 + n) / (self.observations + 1) as f32;
                 self.min = self.min.min(*n);
                 self.max = self.max.max(*n);
                 self.observations += 1;
