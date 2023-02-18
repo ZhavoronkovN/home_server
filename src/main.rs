@@ -9,7 +9,7 @@ mod modules;
 use simple_logger::SimpleLogger;
 use std::sync::Arc;
 
-const DEFAULT_I2C_ADDRESS: &str = "/dev/i2c-0";
+const DEFAULT_I2C_ADDRESS: &str = "/dev/i2c-1";
 const DEFAULT_SMOKE_ALARM_PIN: &str = "12";
 const DEFAULT_MOTION_DETECT_PIN: &str = "26";
 const DEFAULT_SERVER_ADDRESS: &str = "0.0.0.0";
@@ -51,10 +51,6 @@ fn _build_getter() -> MyResult<modules::ModuleStatsGetter> {
         i2c_address.as_str(),
         modules::AM2320Usage::Temperature,
     )?);
-    getter.add_module(modules::AM2320Module::new(
-        i2c_address.as_str(),
-        modules::AM2320Usage::Humidity,
-    )?);
     getter.add_module(modules::SysfsPinReader::new(
         smoke_alarm_pin,
         "smoke_alarm".to_string(),
@@ -62,6 +58,10 @@ fn _build_getter() -> MyResult<modules::ModuleStatsGetter> {
     getter.add_module(modules::SysfsPinReader::new(
         motion_detect_pin,
         "motion_detect".to_string(),
+    )?);
+    getter.add_module(modules::AM2320Module::new(
+        i2c_address.as_str(),
+        modules::AM2320Usage::Humidity,
     )?);
     Ok(getter)
 }
